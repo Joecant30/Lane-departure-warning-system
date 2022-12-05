@@ -157,43 +157,22 @@ pygame.display.flip()
 crashed = False
 
 while not crashed:
-    # Advance the simulation time
+    #advance the simulation time
     world.tick()
-    # Update the display
+    #update the display
     gameDisplay.blit(renderObject.surface, (0,0))
     pygame.display.flip()
-    # Process the current control state
+    #process the current control state
     controlObject.process_control()
-    # Collect key press events
+    #collect key press events
     for event in pygame.event.get():
-        # If the window is closed, break the while loop
+        #if the window is closed, break the while loop
         if event.type == pygame.QUIT:
             crashed = True
 
-        # Parse effect of key press event on control state
+        #parse effect of key press event on control state
         controlObject.parse_control(event)
-        # if event.type == pygame.KEYUP:
-        #     # TAB key switches vehicle
-        #     if event.key == pygame.K_TAB:
-        #         ego_vehicle.set_autopilot(True)
-        #         ego_vehicle = random.choice(vehicles)
-        #         # Ensure vehicle is still alive (might have been destroyed)
-        #         if ego_vehicle.is_alive:
-        #             # Stop and remove the camera
-        #             camera.stop()
-        #             camera.destroy()
-
-        #             # Spawn new camera and attach to new vehicle
-        #             controlObject = ControlObject(ego_vehicle)
-        #             camera = world.spawn_actor(camera_bp, camera_init_trans, attach_to=ego_vehicle)
-        #             camera.listen(lambda image: pygame_callback(image, renderObject))
-
-        #             # Update PyGame window
-        #             gameDisplay.fill((0,0,0))               
-        #             gameDisplay.blit(renderObject.surface, (0,0))
-        #             pygame.display.flip()
-
-# Stop camera and quit PyGame after exiting game loop
+        
 sensor.stop()
 pygame.quit()
 
