@@ -1,0 +1,5 @@
+### Intellisense stubs ###
+typings/*
+
+### Virtual environment ###
+.venv
