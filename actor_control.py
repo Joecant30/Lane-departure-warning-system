@@ -32,11 +32,16 @@ transform = random.choice(spawn_points)
 vehicle = world.spawn_actor(bp, transform)
 print("created %s" % vehicle.type_id)
 
-#create a new RGB camera and position it relative to the car
+#create a new RGB camera positioned behind the vehicle for user control
 sensor_bp = blueprint_library.find('sensor.camera.rgb')
-sensor_transform = carla.Transform(carla.Location(x=1.5, z=2.4), carla.Rotation(pitch=-20))
+sensor_transform = carla.Transform(carla.Location(x=-5, z=3), carla.Rotation(pitch=-20))
 sensor = world.spawn_actor(sensor_bp, sensor_transform, attach_to=vehicle)
 print("created %s" % sensor.type_id)
+
+#create a new RGB camera positioned at the front of the vehicle for lane detection
+lane_sensor_transform = carla.Transform(carla.Location(x=0, z=0), carla.Rotation(pitch=-20))
+lane_sensor = world.spawn_actor(sensor_bp, lane_sensor_transform, attach_to=vehicle)
+print("created %s" % lane_sensor.type_id)
 
 #create and render object to pass to the PyGame surface
 class RenderObject(object):
