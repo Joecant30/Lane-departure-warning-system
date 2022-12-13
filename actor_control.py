@@ -39,7 +39,7 @@ sensor = world.spawn_actor(sensor_bp, sensor_transform, attach_to=vehicle)
 print("created %s" % sensor.type_id)
 
 #create a new RGB camera positioned at the front of the vehicle for lane detection
-lane_sensor_transform = carla.Transform(carla.Location(x=0, z=0), carla.Rotation(pitch=-20))
+lane_sensor_transform = carla.Transform(carla.Location(x=1.8, z=1.5), carla.Rotation(pitch=-20))
 lane_sensor = world.spawn_actor(sensor_bp, lane_sensor_transform, attach_to=vehicle)
 print("created %s" % lane_sensor.type_id)
 
@@ -146,22 +146,25 @@ class ControlObject(object):
         self._vehicle.apply_control(self._control)
 
 #get sensor dimensions
-image_w = sensor_bp.get_attribute("image_size_x").as_int()
-image_h = sensor_bp.get_attribute("image_size_y").as_int()
+sensor_image_w = sensor_bp.get_attribute("image_size_x").as_int()
+sensor_image_h = sensor_bp.get_attribute("image_size_y").as_int()
 
 #instantiate objects for rendering and vehicle control
-renderObject = RenderObject(image_w, image_h)
+renderObject = RenderObject(sensor_image_w, sensor_image_h)
+renderLaneObject = RenderObject(sensor_image_w, sensor_image_h)
 controlObject = ControlObject(vehicle)
 
 #start sensor with PyGame callback
 sensor.listen(lambda image: pygame_callback(image, renderObject))
+lane_sensor.listen(lambda image: pygame_callback(image, renderLaneObject))
 
 #initialise PyGame window
 pygame.init()
-gameDisplay = pygame.display.set_mode((image_w,image_h), pygame.HWSURFACE | pygame.DOUBLEBUF)
+gameDisplay = pygame.display.set_mode((sensor_image_w*2,sensor_image_h), pygame.HWSURFACE | pygame.DOUBLEBUF)
 # draw black to the display
 gameDisplay.fill((0,0,0))
 gameDisplay.blit(renderObject.surface, (0,0))
+gameDisplay.blit(renderLaneObject.surface, (sensor_image_w, 0))
 pygame.display.flip()
 
 #game loop
@@ -172,6 +175,7 @@ while not crashed:
     world.tick()
     #update the display
     gameDisplay.blit(renderObject.surface, (0,0))
+    gameDisplay.blit(renderLaneObject.surface, (sensor_image_w, 0))
     pygame.display.flip()
     #process the current control state
     controlObject.process_control()
