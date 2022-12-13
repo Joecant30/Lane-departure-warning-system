@@ -17,7 +17,7 @@ world.apply_settings(settings)
 
 #select random vehicle from blueprint library
 blueprint_library = world.get_blueprint_library()
-bp = random.choice(blueprint_library.filter("vehicle"))
+bp = blueprint_library.filter("model3")[0]
 
 #randomise colour of vehicle
 if bp.has_attribute("colour"):
@@ -98,10 +98,16 @@ class ControlObject(object):
     # if the key remains pressed
     def process_control(self):
 
-        if self._throttle: 
-            self._control.throttle = min(self._control.throttle + 0.01, 1)
-            self._control.gear = 1
-            self._control.brake = False
+        if self._throttle:
+            # limit top speed to 15mph for better actor control
+            if self._vehicle.get_velocity().length() > 6.71:
+                self._control.throttle = 0.33
+                self._control.gear = 1
+                self._control.brake = False
+            else:
+                self._control.throttle = min(self._control.throttle + 0.01, 1)
+                self._control.gear = 1
+                self._control.brake = False
         elif not self._brake:
             self._control.throttle = 0.0
 
@@ -122,9 +128,9 @@ class ControlObject(object):
 
         if self._steer is not None:
             if self._steer == 1:
-                self._steer_cache += 0.03
+                self._steer_cache += 0.02
             if self._steer == -1:
-                self._steer_cache -= 0.03
+                self._steer_cache -= 0.02
             min(0.7, max(-0.7, self._steer_cache))
             self._control.steer = round(self._steer_cache,1)
         else:
