@@ -2,6 +2,7 @@ import carla;
 import pygame;
 import random;
 import numpy as np;
+import lane_detection as lane
 
 
 #connect to carla and retrieve world
@@ -50,11 +51,18 @@ class RenderObject(object):
         self.surface = pygame.surfarray.make_surface(init_image.swapaxes(0, 1))
 
 #camera sensor callback function, reshapes raw data from the sensor into 2D RGB and applies to PyGame surface
-def pygame_callback(data, obj):
-    img = np.reshape(np.copy(data.raw_data), (data.height, data.width, 4))
-    img = img[:,:,:3]
-    img = img[:, :, ::-1]
-    obj.surface = pygame.surfarray.make_surface(img.swapaxes(0,1))
+def pygame_callback(data, type, obj):
+    if(type == "sensor"):
+        img = np.reshape(np.copy(data.raw_data), (data.height, data.width, 4))
+        img = img[:,:,:3]
+        img = img[:, :, ::-1]
+        obj.surface = pygame.surfarray.make_surface(img.swapaxes(0,1))
+    else:
+        img = np.reshape(np.copy(data.raw_data), (data.height, data.width, 4))
+        img = img[:,:,:3]
+        img = img[:, :, ::-1]
+        img = lane.process_image(img)
+        obj.surface = pygame.surfarray.make_surface(img.swapaxes(0,1))
 
 #control object to manage vehicle control
 class ControlObject(object):
@@ -154,9 +162,9 @@ renderObject = RenderObject(sensor_image_w, sensor_image_h)
 renderLaneObject = RenderObject(sensor_image_w, sensor_image_h)
 controlObject = ControlObject(vehicle)
 
-#start sensor with PyGame callback
-sensor.listen(lambda image: pygame_callback(image, renderObject))
-lane_sensor.listen(lambda image: pygame_callback(image, renderLaneObject))
+#start sensors with PyGame callback
+sensor.listen(lambda image: pygame_callback(image, "sensor", renderObject))
+lane_sensor.listen(lambda image: pygame_callback(image, "lane", renderLaneObject))
 
 #initialise PyGame window
 pygame.init()
@@ -189,5 +197,6 @@ while not crashed:
         controlObject.parse_control(event)
         
 sensor.stop()
+lane_sensor.stop()
 pygame.quit()
 

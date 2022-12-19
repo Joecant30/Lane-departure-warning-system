@@ -3,3 +3,7 @@ typings/*
 
 ### Virtual environment ###
 .venv
+
+### __pycache__ ###
+
+__pycache__/*
