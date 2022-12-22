@@ -59,8 +59,6 @@ def pygame_callback(data, type, obj):
         obj.surface = pygame.surfarray.make_surface(img.swapaxes(0,1))
     else:
         img = np.reshape(np.copy(data.raw_data), (data.height, data.width, 4))
-        img = img[:,:,:3]
-        img = img[:, :, ::-1]
         img = lane.process_image(img)
         obj.surface = pygame.surfarray.make_surface(img.swapaxes(0,1))
 
