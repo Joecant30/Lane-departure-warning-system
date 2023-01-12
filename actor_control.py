@@ -3,7 +3,7 @@ import pygame;
 import random;
 import numpy as np;
 import lane_detection as lane
-
+import os
 
 #connect to carla and retrieve world
 client = carla.Client("localhost", 2000)
@@ -35,14 +35,24 @@ print("created %s" % vehicle.type_id)
 
 #create a new RGB camera positioned behind the vehicle for user control
 sensor_bp = blueprint_library.find('sensor.camera.rgb')
+sensor_bp.set_attribute("image_size_x", "1280")
+sensor_bp.set_attribute("image_size_y", "720")
 sensor_transform = carla.Transform(carla.Location(x=-5, z=3), carla.Rotation(pitch=-20))
 sensor = world.spawn_actor(sensor_bp, sensor_transform, attach_to=vehicle)
 print("created %s" % sensor.type_id)
 
 #create a new RGB camera positioned at the front of the vehicle for lane detection
-lane_sensor_transform = carla.Transform(carla.Location(x=1.8, z=1.5), carla.Rotation(pitch=-20))
-lane_sensor = world.spawn_actor(sensor_bp, lane_sensor_transform, attach_to=vehicle)
+lane_bp = blueprint_library.find('sensor.camera.rgb')
+lane_bp.set_attribute("image_size_x", "1280")
+lane_bp.set_attribute("image_size_y", "720")
+lane_bp.set_attribute("fov", "100")
+lane_sensor_transform = carla.Transform(carla.Location(x=1.5, z=1.5), carla.Rotation(pitch=-10))
+lane_sensor = world.spawn_actor(lane_bp, lane_sensor_transform, attach_to=vehicle)
 print("created %s" % lane_sensor.type_id)
+
+#get sensor dimensions
+sensor_image_w = sensor_bp.get_attribute("image_size_x").as_int()
+sensor_image_h = sensor_bp.get_attribute("image_size_y").as_int()
 
 #create and render object to pass to the PyGame surface
 class RenderObject(object):
@@ -59,7 +69,9 @@ def pygame_callback(data, type, obj):
         obj.surface = pygame.surfarray.make_surface(img.swapaxes(0,1))
     else:
         img = np.reshape(np.copy(data.raw_data), (data.height, data.width, 4))
-        img = lane.process_image(img)
+        img = img[:,:,:3]
+        img = img[:, :, ::-1]
+        img = lane.process_image(img, sensor_image_h, sensor_image_w)
         obj.surface = pygame.surfarray.make_surface(img.swapaxes(0,1))
 
 #control object to manage vehicle control
@@ -151,10 +163,6 @@ class ControlObject(object):
         #apply the control parameters to the vehicle
         self._vehicle.apply_control(self._control)
 
-#get sensor dimensions
-sensor_image_w = sensor_bp.get_attribute("image_size_x").as_int()
-sensor_image_h = sensor_bp.get_attribute("image_size_y").as_int()
-
 #instantiate objects for rendering and vehicle control
 renderObject = RenderObject(sensor_image_w, sensor_image_h)
 renderLaneObject = RenderObject(sensor_image_w, sensor_image_h)
@@ -163,6 +171,8 @@ controlObject = ControlObject(vehicle)
 #start sensors with PyGame callback
 sensor.listen(lambda image: pygame_callback(image, "sensor", renderObject))
 lane_sensor.listen(lambda image: pygame_callback(image, "lane", renderLaneObject))
+
+#os.environ['SDL_VIDEO_WINDOW_POS'] = "%d,%d" % (0,sensor_image_h)
 
 #initialise PyGame window
 pygame.init()
@@ -191,9 +201,12 @@ while not crashed:
         if event.type == pygame.QUIT:
             crashed = True
 
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            pos = pygame.mouse.get_pos()
+            print([pos[0], pos[1]])
         #parse effect of key press event on control state
         controlObject.parse_control(event)
-        
+
 sensor.stop()
 lane_sensor.stop()
 pygame.quit()

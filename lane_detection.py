@@ -3,7 +3,7 @@ import cv2
 import matplotlib.pyplot as plt
 
 #Perform sobel edge detection and thresholding on the lane image
-def threshold_image(img, sx_thresh=(15, 255)):
+def threshold_image(img, sx_thresh=(25, 255)):
     #Convert image to greyscale
     grey = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY).astype(np.float)
 
@@ -16,7 +16,34 @@ def threshold_image(img, sx_thresh=(15, 255)):
     sobel_x_binary = np.zeros_like(sobel_x8u)
     sobel_x_binary[(sobel_x8u >= sx_thresh[0]) & (sobel_x8u <= sx_thresh[1])] = 1
 
+    #Blur image to reduce noise
+    sobel_x_binary = cv2.GaussianBlur(sobel_x_binary, (5,5), 0)
+
     return sobel_x_binary
 
-def process_image(img):
-    return threshold_image(img)
+def perspective_warp(img, height, width, warp_type):
+    if(warp_type == "warp"):
+        desired=np.float32([(0, 0),(0, 1),(1, 1),(1, 0)]), 
+        src=np.float32([(0.386, 0.526), (0, 1), (1, 1), (0.616, 0.526)])
+    else:
+        src=np.float32([(0, 0),(0, 1),(1, 1),(1, 0)]), 
+        desired=np.float32([(0.386, 0.526), (0, 1), (1, 1), (0.616, 0.526)])
+
+    desired_size = (width, height)
+    img_size = np.float32([width, height])
+    src = src * img_size
+    desired = desired * np.float32(desired_size)
+    transform_matrix = cv2.getPerspectiveTransform(src, desired)
+    warped = cv2.warpPerspective(img, transform_matrix, desired_size)
+    return warped
+
+def histogram_values(img):
+    hist = np.sum(img[img.shape[0]//2:,:], axis=0)
+    return hist
+
+
+
+def process_image(img, height, width):
+    img = threshold_image(img)
+    img = perspective_warp(img, height, width, "warp")
+    return img
