@@ -2,12 +2,12 @@ import carla;
 import pygame;
 import random;
 import numpy as np;
-import lane_detection as lane
+import process_image as process
 import os
 
 #connect to carla and retrieve world
 client = carla.Client("localhost", 2000)
-client.set_timeout(15.0)
+client.set_timeout(30.0)
 world = client.load_world("Town05")
 
 #enable synchronous mode on server
@@ -71,7 +71,7 @@ def pygame_callback(data, type, obj):
         img = np.reshape(np.copy(data.raw_data), (data.height, data.width, 4))
         img = img[:,:,:3]
         img = img[:, :, ::-1]
-        img = lane.process_image(img, sensor_image_h, sensor_image_w)
+        img = process.process_image(img, sensor_image_h, sensor_image_w)
         obj.surface = pygame.surfarray.make_surface(img.swapaxes(0,1))
 
 #control object to manage vehicle control
