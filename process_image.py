@@ -38,10 +38,6 @@ def perspective_warp(img, height, width, warp_type):
     warped = cv2.warpPerspective(img, transform_matrix, desired_size)
     return warped
 
-def histogram_values(img):
-    hist = np.sum(img[img.shape[0]//2:,:], axis=0)
-    return hist
-
 def process_image(img, height, width):
     img = threshold_image(img)
     img = perspective_warp(img, height, width, "warp")
