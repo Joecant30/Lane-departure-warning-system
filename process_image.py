@@ -1,7 +1,6 @@
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
-import lane_detection
 
 #Perform sobel edge detection and thresholding on the lane image
 def threshold_image(img, sx_thresh=(25, 255)):

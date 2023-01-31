@@ -3,7 +3,6 @@ import pygame;
 import random;
 import numpy as np;
 import process_image as process
-import os
 
 #connect to carla and retrieve world
 client = carla.Client("localhost", 2000)
