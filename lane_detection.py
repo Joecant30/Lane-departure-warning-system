@@ -11,8 +11,6 @@ def sliding_window(img):
     margin = 50 #inner and outer margin for weindow
     minpix = 1 #minmimum number of pixels needed to recenter window
 
-    out_img = np.dstack((img, img, img))*255
-
     #calculate histogram peaks of image halves
     histogram = histogram_values(img)
     midpoint = int(histogram.shape[0]/2)
@@ -44,10 +42,6 @@ def sliding_window(img):
         window_right_low_x =rightx_current - margin
         window_right_high_x =rightx_current + margin
 
-        #Draw windows on current frame
-        cv2.rectangle(out_img, (window_left_low_x, window_low_y), (window_left_high_x, window_high_y), (100, 255, 255), 3)
-        cv2.rectangle(out_img, (window_right_low_x, window_low_y), (window_right_high_x, window_high_y), (100, 255, 255), 3)
-
         #Identify nonzero pixels in each window
         nonzero_left_indices = ((nonzero_y >= window_low_y) & (nonzero_y < window_high_y) & 
         (nonzero_x >= window_left_low_x) & (nonzero_x < window_left_high_x)).nonzero()[0]
@@ -74,9 +68,33 @@ def sliding_window(img):
     right_x = nonzero_x[right_lane_indices]
     right_y = nonzero_y[right_lane_indices]
 
+    #Find second order polynomial to fit the lines
+    left_fit = np.polyfit(left_y, left_x, 2)
+    right_fit = np.polyfit(right_y, right_x, 2)
 
+    #Use coefficients to generate x and y values for lines
+    polyline = np.linspace(img.shape[0]-1, img.shape[0])
+    left_fit_x = left_fit[0]*polyline**2 + left_fit[1]*polyline + left_fit[2]
+    right_fit_x = right_fit[0]*polyline**2 + right_fit[1]*polyline + right_fit[2]
 
+    return (left_fit_x, right_fit_x), (left_fit, right_fit), polyline
 
+def find_curve(img, left_fit, right_fit, polyline):
+    y_eval = np.max(polyline)
+    polyline = np.linspace(img.shape[0]-1, img.shape[0])
+    meters_pp_y = 30/720
+    meters_pp_x = 3.5/1280
+    
+    new_left_fit = np.polyfit(polyline*meters_pp_y, left_fit*meters_pp_x, 2)
+    new_right_fit = np.polyfit(polyline*meters_pp_y, right_fit*meters_pp_x, 2)
+    left_curveradius = ((1 + (2*new_left_fit[0]*y_eval*meters_pp_y + new_left_fit[1])**2)**1.5) / np.absolute(2*new_left_fit[0])
+    right_curveradius = ((1 + (2*new_right_fit[0]*y_eval*meters_pp_y + new_right_fit[1])**2)**1.5) / np.absolute(2*new_right_fit[0])
+    
+    car_position = img.shape[1]/2
+    fit_left_to_img = new_left_fit[0]*img.shape[0]**2 + new_left_fit[1]*img.shape[0] + new_left_fit[2]
+    fit_right_to_img = new_right_fit[0]*img.shape[0]**2 + new_right_fit[1]*img.shape[0] + new_right_fit[2]
+    lane_center = (fit_left_to_img + fit_right_to_img)/2
+    dist_from_center = (car_position - lane_center)*meters_pp_x / 10
 
-
+    return (left_curveradius, right_curveradius, dist_from_center)
 
