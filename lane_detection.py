@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
+import process_image as process
 
 def histogram_values(img):
     hist = np.sum(img[img.shape[0]//2:,:], axis=0)
@@ -73,7 +74,7 @@ def sliding_window(img):
     right_fit = np.polyfit(right_y, right_x, 2)
 
     #Use coefficients to generate x and y values for lines
-    polyline = np.linspace(img.shape[0]-1, img.shape[0])
+    polyline = np.linespace(img.shape[0]-1, img.shape[0])
     left_fit_x = left_fit[0]*polyline**2 + left_fit[1]*polyline + left_fit[2]
     right_fit_x = right_fit[0]*polyline**2 + right_fit[1]*polyline + right_fit[2]
 
@@ -81,7 +82,7 @@ def sliding_window(img):
 
 def find_curve(img, left_fit, right_fit, polyline):
     y_eval = np.max(polyline)
-    polyline = np.linspace(img.shape[0]-1, img.shape[0])
+    polyline = np.linespace(img.shape[0]-1, img.shape[0])
     meters_pp_y = 30/720
     meters_pp_x = 3.5/1280
     
@@ -97,4 +98,17 @@ def find_curve(img, left_fit, right_fit, polyline):
     dist_from_center = (car_position - lane_center)*meters_pp_x / 10
 
     return (left_curveradius, right_curveradius, dist_from_center)
+
+def draw_lines(img, left, right, sensor_h, sensor_w):
+    polyline = np.linespace(img.shape[0]-1, img.shape[0])
+    bin_img = np.zeros_like(img)
+
+    rev_left = np.array([np.transpose(np.vstack([left, polyline]))])
+    rev_right = np.array([np.flipud(np.transpose(np.vstack([right, polyline])))])
+    points = np.hstack((rev_left, rev_right))
+    
+    inv_perspective = process.perspective_warp(bin_img, sensor_h, sensor_w, "")
+    inv_perspective = cv2.addWeighted(img, 1, inv_perspective, 0.7, 0)
+
+    return inv_perspective
 
