@@ -30,7 +30,7 @@ def perspective_warp(img, height, width, warp_type):
         desired=np.float32([(0.386, 0.526), (0, 1), (1, 1), (0.616, 0.526)])
 
     desired_size = (width, height)
-    img_size = np.float32([width, height])
+    img_size = np.float32([img.shape[1], img.shape[0]])
     src = src * img_size
     desired = desired * np.float32(desired_size)
     transform_matrix = cv2.getPerspectiveTransform(src, desired)

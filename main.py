@@ -1,7 +1,9 @@
-import carla;
-import pygame;
-import random;
-import numpy as np;
+import carla
+import pygame
+import random
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
 import process_image as process
 import lane_detection as lane
 
@@ -71,10 +73,15 @@ def pygame_vehicle_control_callback(data, obj):
 #camera sensor callback function for the rear camera
 def pygame_lane_detection_callback(data, img_obj, lane_obj):
     img = np.reshape(np.copy(data.raw_data), (data.height, data.width, 4))
+    img_ = process.process_image(img, sensor_image_h, sensor_image_w)
     img = img[:,:,:3]
     img = img[:, :, ::-1]
-    img_obj.surface = pygame.surfarray.make_surface(img.swapaxes(0,1))
-    pygame.draw.rect(lane_obj, (255, 0, 0), ((10,10),(100,100)), width = 0)
+    output_windows, curves, lanes = lane.sliding_window(img_)
+    print(np.asarray(curves).shape)   
+    curve_radius = lane.find_curve(img_, curves[0], curves[1])
+    print(curve_radius)
+    img__ = lane.draw_lines(img, curves[0], curves[1], sensor_image_h, sensor_image_w)
+    img_obj.surface = pygame.surfarray.make_surface(img__.swapaxes(0,1))
 
 #control object to manage vehicle control
 class ControlObject(object):
@@ -170,17 +177,6 @@ renderLaneObject = RenderObject(sensor_image_w, sensor_image_h)
 overlayLanes = pygame.Surface((sensor_image_w, sensor_image_h), pygame.SRCALPHA, 32)
 controlObject = ControlObject(vehicle)
 
-# def detect_lanes(data, sensor_h, sensor_w):
-#     img = np.reshape(np.copy(data.raw_data), (data.height, data.width, 4))
-#     img = img[:,:,:3]
-#     img = img[:, :, ::-1]
-#     img = process.process_image(img, sensor_image_h, sensor_image_w)
-#     curves, lanes, polyline = lane.sliding_window(img)
-#     curve_radius = lane.find_curve(img, curves[0], curves[1])
-#     print(curve_radius)
-#     img = lane.draw_lines(img, curves[0], curves[1], sensor_h, sensor_w)
-#     print(img)
-
 #start sensors with PyGame callback
 sensor.listen(lambda image: pygame_vehicle_control_callback(image, renderObject))
 lane_sensor.listen(lambda image: pygame_lane_detection_callback(image, renderLaneObject, overlayLanes))
@@ -222,9 +218,3 @@ while not crashed:
 sensor.stop()
 lane_sensor.stop()
 pygame.quit()
-
-# # Create a polygon from the left and right lane line coordinates
-# polygon_points = [(x, y) for x, y in left_line] + [(x, y) for x, y in reversed(right_line)]
-
-# # Fill the polygon with the specified color
-# pygame.draw.polygon(screen, color, polygon_points)

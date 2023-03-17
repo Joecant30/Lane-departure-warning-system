@@ -1,22 +1,27 @@
 import numpy as np
-import cv2
-import matplotlib.pyplot as plt
 import process_image as process
+import cv2
 
 def histogram_values(img):
     hist = np.sum(img[img.shape[0]//2:,:], axis=0)
     return hist
 
+left1, left2, left3 = [], [], []
+right1, right2, right3 = [], [], []
+
 def sliding_window(img):
     num_windows = 9
-    margin = 50 #inner and outer margin for weindow
-    minpix = 1 #minmimum number of pixels needed to recenter window
+    margin = 150
+    minpix = 1
+    left_fit_ = np.empty(3)
+    right_fit_ = np.empty(3)
+    output_windows = np.dstack((img, img, img))*255
 
     #calculate histogram peaks of image halves
     histogram = histogram_values(img)
     midpoint = int(histogram.shape[0]/2)
     leftx_initial = np.argmax(histogram[:midpoint])
-    rightx_initial = np.argmax(histogram[:midpoint]) + midpoint
+    rightx_initial = np.argmax(histogram[midpoint:]) + midpoint
 
     #set height of sliding window
     window_height = np.int(img.shape[0]/num_windows)
@@ -40,8 +45,12 @@ def sliding_window(img):
         window_high_y = img.shape[0] - window * window_height
         window_left_low_x = leftx_current - margin
         window_left_high_x = leftx_current + margin
-        window_right_low_x =rightx_current - margin
-        window_right_high_x =rightx_current + margin
+        window_right_low_x = rightx_current - margin
+        window_right_high_x = rightx_current + margin
+
+        #Add boxes showing the sliding windows to an output image
+        cv2.rectangle(output_windows,(window_left_low_x, window_low_y),(window_left_high_x, window_high_y), (100,255,255), 3) 
+        cv2.rectangle(output_windows,(window_right_low_x, window_low_y),(window_right_high_x, window_high_y), (100,255,255), 3)
 
         #Identify nonzero pixels in each window
         nonzero_left_indices = ((nonzero_y >= window_low_y) & (nonzero_y < window_high_y) & 
@@ -68,21 +77,45 @@ def sliding_window(img):
     left_y = nonzero_y[left_lane_indices]
     right_x = nonzero_x[right_lane_indices]
     right_y = nonzero_y[right_lane_indices]
+    # print(np.array2string(left_x))
+    # print(np.array2string(left_y))
+    # print(np.array2string(right_x))
+    # print(np.array2string(right_y))
 
-    #Find second order polynomial to fit the lines
+    #Find second order polynomial coefficients that fit the lines
     left_fit = np.polyfit(left_y, left_x, 2)
     right_fit = np.polyfit(right_y, right_x, 2)
 
+    left1.append(left_fit[0])
+    left2.append(left_fit[1])
+    left3.append(left_fit[2])
+    
+    right1.append(right_fit[0])
+    right2.append(right_fit[1])
+    right3.append(right_fit[2])
+    
+    #Average out the left and right lane pixels
+    left_fit_[0] = np.mean(left1[-10:])
+    left_fit_[1] = np.mean(left2[-10:])
+    left_fit_[2] = np.mean(left3[-10:])
+    
+    right_fit_[0] = np.mean(right1[-10:])
+    right_fit_[1] = np.mean(right2[-10:])
+    right_fit_[2] = np.mean(right3[-10:])
+
     #Use coefficients to generate x and y values for lines
-    polyline = np.linespace(img.shape[0]-1, img.shape[0])
-    left_fit_x = left_fit[0]*polyline**2 + left_fit[1]*polyline + left_fit[2]
-    right_fit_x = right_fit[0]*polyline**2 + right_fit[1]*polyline + right_fit[2]
+    polyline = np.linspace(0, img.shape[0]-1, img.shape[0])
+    left_fit_x = left_fit_[0]*polyline**2 + left_fit_[1]*polyline + left_fit_[2]
+    right_fit_x = right_fit_[0]*polyline**2 + right_fit_[1]*polyline + right_fit_[2]
 
-    return (left_fit_x, right_fit_x), (left_fit, right_fit), polyline
+    output_windows[nonzero_y[left_lane_indices], nonzero_x[left_lane_indices]] = [255, 0, 100]
+    output_windows[nonzero_y[right_lane_indices], nonzero_x[right_lane_indices]] = [0, 100, 255]
 
-def find_curve(img, left_fit, right_fit, polyline):
+    return output_windows, (left_fit_x, right_fit_x), (left_fit_, right_fit_)
+
+def find_curve(img, left_fit, right_fit):
+    polyline = np.linspace(0, img.shape[0]-1, img.shape[0])
     y_eval = np.max(polyline)
-    polyline = np.linespace(img.shape[0]-1, img.shape[0])
     meters_pp_y = 30/720
     meters_pp_x = 3.5/1280
     
@@ -100,15 +133,15 @@ def find_curve(img, left_fit, right_fit, polyline):
     return (left_curveradius, right_curveradius, dist_from_center)
 
 def draw_lines(img, left, right, sensor_h, sensor_w):
-    polyline = np.linespace(img.shape[0]-1, img.shape[0])
+    polyline = np.linspace(0, img.shape[0]-1, img.shape[0])
     bin_img = np.zeros_like(img)
 
     rev_left = np.array([np.transpose(np.vstack([left, polyline]))])
     rev_right = np.array([np.flipud(np.transpose(np.vstack([right, polyline])))])
     points = np.hstack((rev_left, rev_right))
     
+    cv2.fillPoly(bin_img, np.int_(points), (0,255,100))
     inv_perspective = process.perspective_warp(bin_img, sensor_h, sensor_w, "")
     inv_perspective = cv2.addWeighted(img, 1, inv_perspective, 0.7, 0)
 
     return inv_perspective
-
