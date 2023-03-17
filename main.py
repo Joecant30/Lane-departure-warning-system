@@ -78,13 +78,12 @@ def pygame_lane_detection_callback(data, lane_obj, perspective_obj, sliding_obj)
     img = img[:,:,:3]
     img = img[:, :, ::-1]
     output_windows, curves, lanes = lane.sliding_window(img_)
+    sliding_obj.surface = pygame.surfarray.make_surface(output_windows.swapaxes(0,1))
     print(np.asarray(curves).shape)   
     curve_radius = lane.find_curve(img_, curves[0], curves[1])
     print(curve_radius)
     lanes = lane.draw_lines(img, curves[0], curves[1], sensor_image_h, sensor_image_w)
     lane_obj.surface = pygame.surfarray.make_surface(lanes.swapaxes(0,1))
-
-
 
 #control object to manage vehicle control
 class ControlObject(object):
