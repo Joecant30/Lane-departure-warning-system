@@ -23,11 +23,11 @@ def threshold_image(img, sx_thresh=(25, 255)):
 
 def perspective_warp(img, height, width, warp_type):
     if(warp_type == "warp"):
-        desired=np.float32([(0, 0),(0, 1),(1, 1),(1, 0)]), 
-        src=np.float32([(0.386, 0.526), (0, 1), (1, 1), (0.616, 0.526)])
+        desired=np.float32([(0, 0),(0, 1),(1, 1),(1, 0)]),
+        src=np.float32([(0.436, 0.454), (0, 1), (1, 1), (0.565, 0.454)])
     else:
-        src=np.float32([(0, 0),(0, 1),(1, 1),(1, 0)]), 
-        desired=np.float32([(0.386, 0.526), (0, 1), (1, 1), (0.616, 0.526)])
+        src=np.float32([(0, 0),(0, 1),(1, 1),(1, 0)]),
+        desired=np.float32([(0.436, 0.454), (0, 1), (1, 1), (0.565, 0.454)])
 
     desired_size = (width, height)
     img_size = np.float32([img.shape[1], img.shape[0]])
