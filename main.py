@@ -70,18 +70,21 @@ def pygame_vehicle_control_callback(data, obj):
     img = img[:, :, ::-1]
     obj.surface = pygame.surfarray.make_surface(img.swapaxes(0,1))
 
-#camera sensor callback function for the rear camera
-def pygame_lane_detection_callback(data, img_obj, lane_obj):
+#camera sensor callback function for lane detection on front camera
+def pygame_lane_detection_callback(data, lane_obj, perspective_obj, sliding_obj):
     img = np.reshape(np.copy(data.raw_data), (data.height, data.width, 4))
     img_ = process.process_image(img, sensor_image_h, sensor_image_w)
+    perspective_obj.surface = pygame.surfarray.make_surface(img_.swapaxes(0,1))
     img = img[:,:,:3]
     img = img[:, :, ::-1]
     output_windows, curves, lanes = lane.sliding_window(img_)
-    #print(np.asarray(curves).shape)   
+    print(np.asarray(curves).shape)   
     curve_radius = lane.find_curve(img_, curves[0], curves[1])
-    #print(curve_radius)
+    print(curve_radius)
     lanes = lane.draw_lines(img, curves[0], curves[1], sensor_image_h, sensor_image_w)
-    img_obj.surface = pygame.surfarray.make_surface(lanes.swapaxes(0,1))
+    lane_obj.surface = pygame.surfarray.make_surface(lanes.swapaxes(0,1))
+
+
 
 #control object to manage vehicle control
 class ControlObject(object):
@@ -174,20 +177,24 @@ class ControlObject(object):
 #instantiate objects for rendering and vehicle control
 renderObject = RenderObject(sensor_image_w, sensor_image_h)
 renderLaneObject = RenderObject(sensor_image_w, sensor_image_h)
-overlayLanes = pygame.Surface((sensor_image_w, sensor_image_h), pygame.SRCALPHA, 32)
+renderPerspectiveObject = RenderObject(sensor_image_w, sensor_image_h)
+renderSlidingObject = RenderObject(sensor_image_w, sensor_image_h)
 controlObject = ControlObject(vehicle)
 
 #start sensors with PyGame callback
 sensor.listen(lambda image: pygame_vehicle_control_callback(image, renderObject))
-lane_sensor.listen(lambda image: pygame_lane_detection_callback(image, renderLaneObject, overlayLanes))
+#sensor.listen(lambda image: pygame_perspective_view_callback(image, renderPerspectiveObject))
+lane_sensor.listen(lambda image: pygame_lane_detection_callback(image, renderLaneObject, renderPerspectiveObject, renderSlidingObject))
 
 #initialise PyGame window
 pygame.init()
-gameDisplay = pygame.display.set_mode((sensor_image_w*2,sensor_image_h), pygame.HWSURFACE | pygame.DOUBLEBUF)
+gameDisplay = pygame.display.set_mode((sensor_image_w*2,sensor_image_h*2), pygame.HWSURFACE | pygame.DOUBLEBUF)
 # draw black to the display
 gameDisplay.fill((0,0,0))
 gameDisplay.blit(renderObject.surface, (0,0))
 gameDisplay.blit(renderLaneObject.surface, (sensor_image_w, 0))
+gameDisplay.blit(renderPerspectiveObject.surface, (0, sensor_image_h))
+gameDisplay.blit(renderSlidingObject.surface, (sensor_image_w, sensor_image_h))
 pygame.display.flip()
 
 #game loop
@@ -199,7 +206,8 @@ while not crashed:
     #update the display
     gameDisplay.blit(renderObject.surface, (0,0))
     gameDisplay.blit(renderLaneObject.surface, (sensor_image_w, 0))
-    gameDisplay.blit(overlayLanes, (sensor_image_w, 0))
+    gameDisplay.blit(renderPerspectiveObject.surface, (0, sensor_image_h))
+    gameDisplay.blit(renderSlidingObject.surface, (sensor_image_w, sensor_image_h))
     pygame.display.flip()
     #process the current control state
     controlObject.process_control()
