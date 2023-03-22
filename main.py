@@ -70,19 +70,43 @@ def pygame_vehicle_control_callback(data, obj):
     img = img[:, :, ::-1]
     obj.surface = pygame.surfarray.make_surface(img.swapaxes(0,1))
 
+#calculates where the vehicle information on the lane screen should be centred
+def get_text_dimensions(img, text, font):
+    text_size = cv2.getTextSize(text, font, 1, 2)
+    text_x = (img.shape[1] - text_size[0][0]/2)/2
+    return text_x
+
 #camera sensor callback function for lane detection on front camera
-def pygame_lane_detection_callback(data, lane_obj, perspective_obj, sliding_obj):
+def pygame_lane_detection_callback(data, lane_obj, perspective_obj, sliding_obj, veh):
+    #process image and run lane detection on the front camera
     img = np.reshape(np.copy(data.raw_data), (data.height, data.width, 4))
     img_ = process.process_image(img, sensor_image_h, sensor_image_w)
     perspective_obj.surface = pygame.surfarray.make_surface(img_.swapaxes(0,1))
     img = img[:,:,:3]
     img = img[:, :, ::-1]
     output_windows, curves, lanes = lane.sliding_window(img_)
-    sliding_obj.surface = pygame.surfarray.make_surface(output_windows.swapaxes(0,1))
-    print(np.asarray(curves).shape)   
+    sliding_obj.surface = pygame.surfarray.make_surface(output_windows.swapaxes(0,1)) 
     curve_radius = lane.find_curve(img_, curves[0], curves[1])
-    print(curve_radius)
     lanes = lane.draw_lines(img, curves[0], curves[1], sensor_image_h, sensor_image_w)
+
+    #add vehicle information to the lane display
+    font = cv2.FONT_HERSHEY_DUPLEX
+    font_colour = (0, 0, 0)
+    font_size = 0.5
+    avg_lane_curve = np.mean([curve_radius[0], curve_radius[1]])
+
+    veh_offset_text = "Dist. from center: {:.4f} m".format(curve_radius[2])
+    veh_offset_x = get_text_dimensions(lanes, veh_offset_text, font)
+
+    lane_curve_text = "Lane curvature: {:.0f} m".format(avg_lane_curve)
+    lane_curve_x = get_text_dimensions(lanes, lane_curve_text, font)
+
+    vehicle_speed_text = "Vehicle speed: {:.1f}".format(veh.get_velocity().length()*2.237) + " mph"
+    vehicle_speed_x = get_text_dimensions(lanes, vehicle_speed_text, font)
+
+    cv2.putText(lanes, veh_offset_text, (int(veh_offset_x), 710), font, font_size, font_colour, 1)
+    cv2.putText(lanes, lane_curve_text, (int(lane_curve_x), 690), font, font_size, font_colour, 1)
+    cv2.putText(lanes, vehicle_speed_text, (int(vehicle_speed_x), 670), font, font_size, font_colour, 1)
     lane_obj.surface = pygame.surfarray.make_surface(lanes.swapaxes(0,1))
 
 #control object to manage vehicle control
@@ -183,7 +207,7 @@ controlObject = ControlObject(vehicle)
 #start sensors with PyGame callback
 sensor.listen(lambda image: pygame_vehicle_control_callback(image, renderObject))
 #sensor.listen(lambda image: pygame_perspective_view_callback(image, renderPerspectiveObject))
-lane_sensor.listen(lambda image: pygame_lane_detection_callback(image, renderLaneObject, renderPerspectiveObject, renderSlidingObject))
+lane_sensor.listen(lambda image: pygame_lane_detection_callback(image, renderLaneObject, renderPerspectiveObject, renderSlidingObject, vehicle))
 
 #initialise PyGame window
 pygame.init()
