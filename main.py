@@ -56,6 +56,11 @@ print("created %s" % lane_sensor.type_id)
 sensor_image_w = sensor_bp.get_attribute("image_size_x").as_int()
 sensor_image_h = sensor_bp.get_attribute("image_size_y").as_int()
 
+#add lane invasion sensors to detect when the vehicle crosses markings
+lane_invasion_bp = blueprint_library.find("sensor.other.lane_invasion")
+lane_invasion_sensor = world.spawn_actor(lane_invasion_bp, carla.Transform(), attach_to=vehicle)
+print("created %s" % lane_invasion_sensor.type_id)
+
 #create and render object to pass to the PyGame surface
 class RenderObject(object):
     def __init__(self, width, height):
@@ -108,6 +113,11 @@ def pygame_lane_detection_callback(data, lane_obj, perspective_obj, sliding_obj,
     cv2.putText(lanes, lane_curve_text, (int(lane_curve_x), 690), font, font_size, font_colour, 1)
     cv2.putText(lanes, vehicle_speed_text, (int(vehicle_speed_x), 670), font, font_size, font_colour, 1)
     lane_obj.surface = pygame.surfarray.make_surface(lanes.swapaxes(0,1))
+
+def pygame_ldws_callback(event, obj):
+    image = pygame.image.load("warning_icon.png")
+    obj.set_alpha(255)
+    obj.blit(image, (10,10))
 
 #control object to manage vehicle control
 class ControlObject(object):
@@ -197,24 +207,29 @@ class ControlObject(object):
         #apply the control parameters to the vehicle
         self._vehicle.apply_control(self._control)
 
+#initialise PyGame window
+pygame.init()
+gameDisplay = pygame.display.set_mode((sensor_image_w*2,sensor_image_h*2), pygame.HWSURFACE | pygame.DOUBLEBUF)
+
 #instantiate objects for rendering and vehicle control
 renderObject = RenderObject(sensor_image_w, sensor_image_h)
 renderLaneObject = RenderObject(sensor_image_w, sensor_image_h)
 renderPerspectiveObject = RenderObject(sensor_image_w, sensor_image_h)
 renderSlidingObject = RenderObject(sensor_image_w, sensor_image_h)
+renderLaneInvasionObject = pygame.Surface((sensor_image_w, sensor_image_h), pygame.SRCALPHA, 32)
 controlObject = ControlObject(vehicle)
 
-#start sensors with PyGame callback
+#start RGB sensors with PyGame callback
 sensor.listen(lambda image: pygame_vehicle_control_callback(image, renderObject))
-#sensor.listen(lambda image: pygame_perspective_view_callback(image, renderPerspectiveObject))
 lane_sensor.listen(lambda image: pygame_lane_detection_callback(image, renderLaneObject, renderPerspectiveObject, renderSlidingObject, vehicle))
 
-#initialise PyGame window
-pygame.init()
-gameDisplay = pygame.display.set_mode((sensor_image_w*2,sensor_image_h*2), pygame.HWSURFACE | pygame.DOUBLEBUF)
+#start lane invasion sensor with PyGame callback
+lane_invasion_sensor.listen(lambda event: pygame_ldws_callback(event, renderLaneInvasionObject))
+
 # draw black to the display
 gameDisplay.fill((0,0,0))
 gameDisplay.blit(renderObject.surface, (0,0))
+gameDisplay.blit(renderLaneInvasionObject, (0,0))
 gameDisplay.blit(renderLaneObject.surface, (sensor_image_w, 0))
 gameDisplay.blit(renderPerspectiveObject.surface, (0, sensor_image_h))
 gameDisplay.blit(renderSlidingObject.surface, (sensor_image_w, sensor_image_h))
@@ -222,16 +237,24 @@ pygame.display.flip()
 
 #game loop
 crashed = False
-
 while not crashed:
     #advance the simulation time
     world.tick()
     #update the display
     gameDisplay.blit(renderObject.surface, (0,0))
-    gameDisplay.blit(renderLaneObject.surface, (sensor_image_w, 0))
-    gameDisplay.blit(renderPerspectiveObject.surface, (0, sensor_image_h))
-    gameDisplay.blit(renderSlidingObject.surface, (sensor_image_w, sensor_image_h))
+    gameDisplay.blit(renderLaneInvasionObject, (0,0))
+    #gameDisplay.blit(renderLaneObject.surface, (sensor_image_w, 0))
+    #gameDisplay.blit(renderPerspectiveObject.surface, (0, sensor_image_h))
+    #gameDisplay.blit(renderSlidingObject.surface, (sensor_image_w, sensor_image_h))
     pygame.display.flip()
+
+    #fade out lane invasion symbol over time
+    renderLaneInvasionObject.set_alpha(renderLaneInvasionObject.get_alpha())
+    if(renderLaneInvasionObject.get_alpha() == 0):
+        pass
+    else:
+        renderLaneInvasionObject.set_alpha(renderLaneInvasionObject.get_alpha() - 2)
+
     #process the current control state
     controlObject.process_control()
     #collect key press events

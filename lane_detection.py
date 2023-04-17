@@ -116,8 +116,8 @@ def sliding_window(img):
 def find_curve(img, left_fit, right_fit):
     polyline = np.linspace(0, img.shape[0]-1, img.shape[0])
     y_eval = np.max(polyline)
-    meters_pp_y = 30/720
-    meters_pp_x = 3.5/1280
+    meters_pp_y = 25/720
+    meters_pp_x = 3/1280
     
     new_left_fit = np.polyfit(polyline*meters_pp_y, left_fit*meters_pp_x, 2)
     new_right_fit = np.polyfit(polyline*meters_pp_y, right_fit*meters_pp_x, 2)
@@ -128,9 +128,10 @@ def find_curve(img, left_fit, right_fit):
     fit_left_to_img = new_left_fit[0]*img.shape[0]**2 + new_left_fit[1]*img.shape[0] + new_left_fit[2]
     fit_right_to_img = new_right_fit[0]*img.shape[0]**2 + new_right_fit[1]*img.shape[0] + new_right_fit[2]
     lane_center = (fit_left_to_img + fit_right_to_img)/2
+    lane_width = fit_left_to_img + fit_right_to_img
     dist_from_center = (car_position - lane_center)*meters_pp_x / 10
 
-    return (left_curveradius, right_curveradius, dist_from_center)
+    return (left_curveradius, right_curveradius, dist_from_center, lane_width)
 
 def draw_lines(img, left, right, sensor_h, sensor_w):
     polyline = np.linspace(0, img.shape[0]-1, img.shape[0])
