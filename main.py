@@ -114,7 +114,12 @@ def pygame_lane_detection_callback(data, lane_obj, perspective_obj, sliding_obj,
     cv2.putText(lanes, vehicle_speed_text, (int(vehicle_speed_x), 670), font, font_size, font_colour, 1)
     lane_obj.surface = pygame.surfarray.make_surface(lanes.swapaxes(0,1))
 
+#callback function for lane collisions sensors
+#implement vehicle signal logic
 def pygame_ldws_callback(event, obj):
+    lane_types = set(x.type for x in event.crossed_lane_markings)
+    lane_text = ['%r' % str(x).split()[-1] for x in lane_types]
+    print(f"Collision at: {lane_text[0]}")
     image = pygame.image.load("warning_icon.png")
     obj.set_alpha(255)
     obj.blit(image, (10,10))
@@ -129,6 +134,7 @@ class ControlObject(object):
         self._brake = False
         self._steer = None
         self._steer_cache = 0
+        self._blinker_active = False
 
         #the carla.VehicleControl() is needed to alter the vehicles control state
         self._control = carla.VehicleControl()
@@ -145,7 +151,21 @@ class ControlObject(object):
             if event.key == pygame.K_d:
                 self._steer = 1 
             if event.key == pygame.K_a:
-                self._steer = -1 
+                self._steer = -1
+            if event.key == pygame.K_q:
+                if self._blinker_active == False:
+                    self._vehicle.set_light_state(carla.VehicleLightState.LeftBlinker)
+                    self._blinker_active = True
+                else:
+                    self._vehicle.set_light_state(carla.VehicleLightState.NONE)
+                    self._blinker_active = False
+            if event.key == pygame.K_e:
+                if self._blinker_active == False:
+                    self._vehicle.set_light_state(carla.VehicleLightState.RightBlinker)
+                    self._blinker_active = True
+                else:
+                    self._vehicle.set_light_state(carla.VehicleLightState.NONE)
+                    self._blinker_active = False
         if event.type == pygame.KEYUP:
             if event.key == pygame.K_w:
                 self._throttle = False
@@ -243,9 +263,9 @@ while not crashed:
     #update the display
     gameDisplay.blit(renderObject.surface, (0,0))
     gameDisplay.blit(renderLaneInvasionObject, (0,0))
-    #gameDisplay.blit(renderLaneObject.surface, (sensor_image_w, 0))
-    #gameDisplay.blit(renderPerspectiveObject.surface, (0, sensor_image_h))
-    #gameDisplay.blit(renderSlidingObject.surface, (sensor_image_w, sensor_image_h))
+    gameDisplay.blit(renderLaneObject.surface, (sensor_image_w, 0))
+    gameDisplay.blit(renderPerspectiveObject.surface, (0, sensor_image_h))
+    gameDisplay.blit(renderSlidingObject.surface, (sensor_image_w, sensor_image_h))
     pygame.display.flip()
 
     #fade out lane invasion symbol over time
