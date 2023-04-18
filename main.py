@@ -116,13 +116,14 @@ def pygame_lane_detection_callback(data, lane_obj, perspective_obj, sliding_obj,
 
 #callback function for lane collisions sensors
 #implement vehicle signal logic
-def pygame_ldws_callback(event, obj):
+def pygame_ldws_callback(event, invasion_obj, control_obj):
     lane_types = set(x.type for x in event.crossed_lane_markings)
     lane_text = ['%r' % str(x).split()[-1] for x in lane_types]
     print(f"Collision at: {lane_text[0]}")
-    image = pygame.image.load("warning_icon.png")
-    obj.set_alpha(255)
-    obj.blit(image, (10,10))
+    if control_obj._blinker_active == False:
+        image = pygame.image.load("warning_icon.png")
+        invasion_obj.set_alpha(255)
+        invasion_obj.blit(image, (10,10))
 
 #control object to manage vehicle control
 class ControlObject(object):
@@ -244,7 +245,7 @@ sensor.listen(lambda image: pygame_vehicle_control_callback(image, renderObject)
 lane_sensor.listen(lambda image: pygame_lane_detection_callback(image, renderLaneObject, renderPerspectiveObject, renderSlidingObject, vehicle))
 
 #start lane invasion sensor with PyGame callback
-lane_invasion_sensor.listen(lambda event: pygame_ldws_callback(event, renderLaneInvasionObject))
+lane_invasion_sensor.listen(lambda event: pygame_ldws_callback(event, renderLaneInvasionObject, controlObject))
 
 # draw black to the display
 gameDisplay.fill((0,0,0))
