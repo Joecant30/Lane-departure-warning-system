@@ -7,59 +7,68 @@ import matplotlib.pyplot as plt
 import process_image as process
 import lane_detection as lane
 
-#connect to carla and retrieve world
-client = carla.Client("localhost", 2000)
-client.set_timeout(30.0)
-world = client.load_world("Town05")
+def init_world():
+    #connect to carla and retrieve world
+    client = carla.Client("localhost", 2000)
+    client.set_timeout(30.0)
+    world = client.load_world("Town05")
 
-#enable synchronous mode on server
-settings = world.get_settings()
-settings.synchronous_mode = True #turn on synchronous mode
-settings.fixed_delta_seconds = 0.05 #set frame rate to 20fps
-world.apply_settings(settings)
+    #enable synchronous mode on server
+    settings = world.get_settings()
+    settings.synchronous_mode = True #turn on synchronous mode
+    settings.fixed_delta_seconds = 0.05 #set frame rate to 20fps
+    world.apply_settings(settings)
 
+    return world
+
+def init_vehicle(world):
 #select random vehicle from blueprint library
-blueprint_library = world.get_blueprint_library()
-bp = blueprint_library.filter("model3")[0]
+    blueprint_library = world.get_blueprint_library()
+    bp = blueprint_library.filter("model3")[0]
 
-#randomise colour of vehicle
-if bp.has_attribute("colour"):
-    colour = random.choice(bp.get_attribute("colour").recommended_values)
-    bp.set_attribute("colour", colour)
+    #randomise colour of vehicle
+    if bp.has_attribute("colour"):
+        colour = random.choice(bp.get_attribute("colour").recommended_values)
+        bp.set_attribute("colour", colour)
 
-#select random spawn point and store it
-spawn_points = world.get_map().get_spawn_points()
-transform = random.choice(spawn_points)
+    #select random spawn point and store it
+    spawn_points = world.get_map().get_spawn_points()
+    transform = random.choice(spawn_points)
 
-#spawn vehicle in the world and notify user it's created
-vehicle = world.spawn_actor(bp, transform)
-print("created %s" % vehicle.type_id)
+    #spawn vehicle in the world and notify user it's created
+    vehicle = world.spawn_actor(bp, transform)
+    print("created %s" % vehicle.type_id)
 
-#create a new RGB camera positioned behind the vehicle for user control
-sensor_bp = blueprint_library.find('sensor.camera.rgb')
-sensor_bp.set_attribute("image_size_x", "1280")
-sensor_bp.set_attribute("image_size_y", "720")
-sensor_transform = carla.Transform(carla.Location(x=-5, z=3), carla.Rotation(pitch=-20))
-sensor = world.spawn_actor(sensor_bp, sensor_transform, attach_to=vehicle)
-print("created %s" % sensor.type_id)
+    return vehicle, blueprint_library
 
-#create a new RGB camera positioned at the front of the vehicle for lane detection
-lane_bp = blueprint_library.find('sensor.camera.rgb')
-lane_bp.set_attribute("image_size_x", "1280")
-lane_bp.set_attribute("image_size_y", "720")
-lane_bp.set_attribute("fov", "100")
-lane_sensor_transform = carla.Transform(carla.Location(x=1.5, z=1.5), carla.Rotation(pitch=-10))
-lane_sensor = world.spawn_actor(lane_bp, lane_sensor_transform, attach_to=vehicle)
-print("created %s" % lane_sensor.type_id)
+def init_vehicle_sensors(world, vehicle, blueprint_library):
+    #create a new RGB camera positioned behind the vehicle for user control
+    sensor_bp = blueprint_library.find('sensor.camera.rgb')
+    sensor_bp.set_attribute("image_size_x", "1280")
+    sensor_bp.set_attribute("image_size_y", "720")
+    sensor_transform = carla.Transform(carla.Location(x=-5, z=3), carla.Rotation(pitch=-20))
+    sensor = world.spawn_actor(sensor_bp, sensor_transform, attach_to=vehicle)
+    print("created %s" % sensor.type_id)
 
-#get sensor dimensions
-sensor_image_w = sensor_bp.get_attribute("image_size_x").as_int()
-sensor_image_h = sensor_bp.get_attribute("image_size_y").as_int()
+    #create a new RGB camera positioned at the front of the vehicle for lane detection
+    lane_bp = blueprint_library.find('sensor.camera.rgb')
+    lane_bp.set_attribute("image_size_x", "1280")
+    lane_bp.set_attribute("image_size_y", "720")
+    lane_bp.set_attribute("fov", "100")
+    lane_sensor_transform = carla.Transform(carla.Location(x=1.5, z=1.5), carla.Rotation(pitch=-10))
+    lane_sensor = world.spawn_actor(lane_bp, lane_sensor_transform, attach_to=vehicle)
+    print("created %s" % lane_sensor.type_id)
 
-#add lane invasion sensors to detect when the vehicle crosses markings
-lane_invasion_bp = blueprint_library.find("sensor.other.lane_invasion")
-lane_invasion_sensor = world.spawn_actor(lane_invasion_bp, carla.Transform(), attach_to=vehicle)
-print("created %s" % lane_invasion_sensor.type_id)
+    #get sensor dimensions
+    sensor_image_w = sensor_bp.get_attribute("image_size_x").as_int()
+    sensor_image_h = sensor_bp.get_attribute("image_size_y").as_int()
+
+    #add lane invasion sensors to detect when the vehicle crosses markings
+    lane_invasion_bp = blueprint_library.find("sensor.other.lane_invasion")
+    lane_invasion_sensor = world.spawn_actor(lane_invasion_bp, carla.Transform(), attach_to=vehicle)
+    print("created %s" % lane_invasion_sensor.type_id)
+
+    return sensor, lane_sensor, lane_invasion_sensor, sensor_image_w, sensor_image_h
 
 #create and render object to pass to the PyGame surface
 class RenderObject(object):
@@ -82,7 +91,7 @@ def get_text_dimensions(img, text, font):
     return text_x
 
 #camera sensor callback function for lane detection on front camera
-def pygame_lane_detection_callback(data, lane_obj, perspective_obj, sliding_obj, veh):
+def pygame_lane_detection_callback(data, lane_obj, perspective_obj, sliding_obj, veh, sensor_image_w, sensor_image_h):
     #process image and run lane detection on the front camera
     img = np.reshape(np.copy(data.raw_data), (data.height, data.width, 4))
     img_ = process.process_image(img, sensor_image_h, sensor_image_w)
@@ -228,40 +237,29 @@ class ControlObject(object):
         #apply the control parameters to the vehicle
         self._vehicle.apply_control(self._control)
 
-#initialise PyGame window
-pygame.init()
-gameDisplay = pygame.display.set_mode((sensor_image_w*2,sensor_image_h*2), pygame.HWSURFACE | pygame.DOUBLEBUF)
+def init_pygame_objects(veh, sensor_image_w, sensor_image_h):
+    #instantiate objects for rendering and vehicle control
+    renderObject = RenderObject(sensor_image_w, sensor_image_h)
+    renderLaneObject = RenderObject(sensor_image_w, sensor_image_h)
+    renderPerspectiveObject = RenderObject(sensor_image_w, sensor_image_h)
+    renderSlidingObject = RenderObject(sensor_image_w, sensor_image_h)
+    renderLaneInvasionObject = pygame.Surface((sensor_image_w, sensor_image_h), pygame.SRCALPHA, 32)
+    controlObject = ControlObject(veh)
 
-#instantiate objects for rendering and vehicle control
-renderObject = RenderObject(sensor_image_w, sensor_image_h)
-renderLaneObject = RenderObject(sensor_image_w, sensor_image_h)
-renderPerspectiveObject = RenderObject(sensor_image_w, sensor_image_h)
-renderSlidingObject = RenderObject(sensor_image_w, sensor_image_h)
-renderLaneInvasionObject = pygame.Surface((sensor_image_w, sensor_image_h), pygame.SRCALPHA, 32)
-controlObject = ControlObject(vehicle)
+    return renderObject, renderLaneObject, renderPerspectiveObject, renderSlidingObject, renderLaneInvasionObject, controlObject
 
-#start RGB sensors with PyGame callback
-sensor.listen(lambda image: pygame_vehicle_control_callback(image, renderObject))
-lane_sensor.listen(lambda image: pygame_lane_detection_callback(image, renderLaneObject, renderPerspectiveObject, renderSlidingObject, vehicle))
+def start_vehicle_sensors(sensor, lane_sensor, lane_invasion_sensor, renderObject, renderLaneObject, renderPerspectiveObject, renderSlidingObject, renderLaneInvasionObject, controlObject, veh, sensor_image_w, sensor_image_h):
+    #start RGB sensors with PyGame callback
+    sensor.listen(lambda image: pygame_vehicle_control_callback(image, renderObject))
+    lane_sensor.listen(lambda image: pygame_lane_detection_callback(image, renderLaneObject, renderPerspectiveObject, renderSlidingObject, veh, sensor_image_w, sensor_image_h))
 
-#start lane invasion sensor with PyGame callback
-lane_invasion_sensor.listen(lambda event: pygame_ldws_callback(event, renderLaneInvasionObject, controlObject))
+    #start lane invasion sensor with PyGame callback
+    lane_invasion_sensor.listen(lambda event: pygame_ldws_callback(event, renderLaneInvasionObject, controlObject))
 
-# draw black to the display
-gameDisplay.fill((0,0,0))
-gameDisplay.blit(renderObject.surface, (0,0))
-gameDisplay.blit(renderLaneInvasionObject, (0,0))
-gameDisplay.blit(renderLaneObject.surface, (sensor_image_w, 0))
-gameDisplay.blit(renderPerspectiveObject.surface, (0, sensor_image_h))
-gameDisplay.blit(renderSlidingObject.surface, (sensor_image_w, sensor_image_h))
-pygame.display.flip()
-
-#game loop
-crashed = False
-while not crashed:
-    #advance the simulation time
-    world.tick()
-    #update the display
+def init_pygame_window(renderObject, renderLaneObject, renderPerspectiveObject, renderSlidingObject, renderLaneInvasionObject, sensor_image_w, sensor_image_h):
+    #initialise PyGame window
+    pygame.init()
+    gameDisplay = pygame.display.set_mode((sensor_image_w*2,sensor_image_h*2), pygame.HWSURFACE | pygame.DOUBLEBUF)
     gameDisplay.blit(renderObject.surface, (0,0))
     gameDisplay.blit(renderLaneInvasionObject, (0,0))
     gameDisplay.blit(renderLaneObject.surface, (sensor_image_w, 0))
@@ -269,27 +267,62 @@ while not crashed:
     gameDisplay.blit(renderSlidingObject.surface, (sensor_image_w, sensor_image_h))
     pygame.display.flip()
 
-    #fade out lane invasion symbol over time
-    renderLaneInvasionObject.set_alpha(renderLaneInvasionObject.get_alpha())
-    if(renderLaneInvasionObject.get_alpha() == 0):
-        pass
-    else:
-        renderLaneInvasionObject.set_alpha(renderLaneInvasionObject.get_alpha() - 2)
+    return gameDisplay
 
-    #process the current control state
-    controlObject.process_control()
-    #collect key press events
-    for event in pygame.event.get():
-        #if the window is closed, break the while loop
-        if event.type == pygame.QUIT:
-            crashed = True
+def start_game_loop(world, gameDisplay, renderObject, renderLaneInvasionObject, renderLaneObject, renderPerspectiveObject, renderSlidingObject, controlObject, width, height, sensor, lane_sensor, lane_invasion_sensor):
+    #game loop
+    crashed = False
+    while not crashed:
+        #advance the simulation time
+        world.tick()
+        #update the display
+        gameDisplay.blit(renderObject.surface, (0,0))
+        gameDisplay.blit(renderLaneInvasionObject, (0,0))
+        gameDisplay.blit(renderLaneObject.surface, (width, 0))
+        gameDisplay.blit(renderPerspectiveObject.surface, (0, height))
+        gameDisplay.blit(renderSlidingObject.surface, (width, height))
+        pygame.display.flip()
 
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            pos = pygame.mouse.get_pos()
-            print([pos[0], pos[1]])
-        #parse effect of key press event on control state
-        controlObject.parse_control(event)
+        #fade out lane invasion symbol over time
+        renderLaneInvasionObject.set_alpha(renderLaneInvasionObject.get_alpha())
+        if(renderLaneInvasionObject.get_alpha() == 0):
+            pass
+        else:
+            renderLaneInvasionObject.set_alpha(renderLaneInvasionObject.get_alpha() - 2)
 
-sensor.stop()
-lane_sensor.stop()
-pygame.quit()
+        #process the current control state
+        controlObject.process_control()
+        #collect key press events
+        for event in pygame.event.get():
+            #if the window is closed, break the while loop
+            if event.type == pygame.QUIT:
+                crashed = True
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                pos = pygame.mouse.get_pos()
+                print([pos[0], pos[1]])
+            #parse effect of key press event on control state
+            controlObject.parse_control(event)
+
+    sensor.stop()
+    lane_sensor.stop()
+    lane_invasion_sensor.stop()
+    pygame.quit()
+
+def main():
+    world = init_world()
+    vehicle, bp_library = init_vehicle(world)
+    sensor, lane_sensor, lane_invasion_sensor, width, height = init_vehicle_sensors(world, 
+                                                                                    vehicle, 
+                                                                                    bp_library)
+    
+    renderObject, renderLaneObject, renderPerspectiveObject, renderSlidingObject, renderLaneInvasionObject, controlObject = init_pygame_objects(vehicle, width, height)
+    start_vehicle_sensors(sensor, lane_sensor, lane_invasion_sensor, renderObject, renderLaneObject, renderPerspectiveObject, renderSlidingObject, renderLaneInvasionObject, controlObject, vehicle, width, height)
+    gameDisplay = init_pygame_window(renderObject, renderLaneObject, renderPerspectiveObject, renderSlidingObject, renderLaneInvasionObject, width, height)
+    
+    start_game_loop(world, gameDisplay, renderObject, renderLaneInvasionObject, 
+                    renderLaneObject, renderPerspectiveObject, renderSlidingObject, 
+                    controlObject, width, height, sensor, lane_sensor, lane_invasion_sensor)
+
+if __name__ == "__main__":
+    main()

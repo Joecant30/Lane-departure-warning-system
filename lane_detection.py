@@ -77,10 +77,6 @@ def sliding_window(img):
     left_y = nonzero_y[left_lane_indices]
     right_x = nonzero_x[right_lane_indices]
     right_y = nonzero_y[right_lane_indices]
-    # print(np.array2string(left_x))
-    # print(np.array2string(left_y))
-    # print(np.array2string(right_x))
-    # print(np.array2string(right_y))
 
     #Find second order polynomial coefficients that fit the lines
     left_fit = np.polyfit(left_y, left_x, 2)
